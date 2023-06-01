@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+
+    environment {
+        registryCredential = 'ecr:us-east-1:awscreds'
+        appRegistry = "338138175677.dkr.ecr.us-east-1.amazonaws.com/todoappimg"
+        todoappRegistry = "https://338138175677.dkr.ecr.us-east-1.amazonaws.com"
+		cluster = "TodoappCluster"
+        service = "TodoappSvc"
+    }
+  stages {
+    stage('Fetch code'){
+      steps {
+        git branch: 'main', url: 'https://github.com/suryamohan1999/Todo_cicd.git'
+      }
+    }
+
+    stage('Build App Image') {
+       steps {
+       
+         script {
+                dockerImage = docker.build( appRegistry + ":$BUILD_NUMBER", ".")
+             }
+
+     }
+    
+    }
+
+    stage('Upload App Image') {
+          steps{
+            script {
+              docker.withRegistry( todoappRegistry, registryCredential ) {
+                dockerImage.push("$BUILD_NUMBER")
+                dockerImage.push('latest')
+              }
+            }
+          }
+     }
+	stage('Deploy to ecs') {
+          steps {
+        withAWS(credentials: 'awscreds', region: 'us-east-2') {
+          sh 'aws ecs update-service --cluster ${cluster} --service ${service} --force-new-deployment'
+        }
+      }
+     }
+
+  }
+}
